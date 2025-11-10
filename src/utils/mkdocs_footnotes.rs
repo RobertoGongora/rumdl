@@ -55,6 +55,41 @@ pub fn is_footnote_continuation(line: &str, base_indent: usize) -> bool {
     get_line_indent(line) >= base_indent + MKDOCS_CONTENT_INDENT
 }
 
+/// Compute a line-by-line mask indicating whether each line is part of a footnote body.
+///
+/// This helper is useful for rules that need to skip or specially-handle footnote content
+/// without duplicating the indentation state machine logic. Footnote definition lines are
+/// not marked as `true`; only continuation and blank lines within the definition block are
+/// included.
+pub fn compute_footnote_context(lines: &[&str]) -> Vec<bool> {
+    let mut context = vec![false; lines.len()];
+    let mut current_base_indent: Option<usize> = None;
+
+    for (i, line) in lines.iter().enumerate() {
+        if is_footnote_definition(line) {
+            current_base_indent = Some(get_footnote_indent(line).unwrap_or(0));
+            continue;
+        }
+
+        if let Some(base_indent) = current_base_indent {
+            if line.trim().is_empty() {
+                context[i] = true;
+                continue;
+            }
+
+            if is_footnote_continuation(line, base_indent) {
+                context[i] = true;
+                continue;
+            }
+
+            // Non-empty line that isn't a continuation ends the current footnote block
+            current_base_indent = None;
+        }
+    }
+
+    context
+}
+
 /// Check if content at a byte position is within a footnote definition
 pub fn is_within_footnote_definition(content: &str, position: usize) -> bool {
     let tracker = BytePositionTracker::new(content);

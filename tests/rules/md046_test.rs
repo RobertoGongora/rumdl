@@ -22,6 +22,22 @@ fn test_consistent_indented_blocks() {
 }
 
 #[test]
+fn test_multi_paragraph_footnote_not_flagged() {
+    let rule = MD046CodeBlockStyle::new(CodeBlockStyle::Consistent);
+    let content = r#"Here is a reference.[^1]
+
+[^1]: First paragraph of the footnote.
+    Second paragraph that should remain part of the footnote.
+
+More text outside the footnote.
+"#;
+
+    let ctx = LintContext::new(content, rumdl_lib::config::MarkdownFlavor::Standard);
+    let result = rule.check(&ctx).unwrap();
+    assert!(result.is_empty());
+}
+
+#[test]
 fn test_mixed_blocks_prefer_fenced() {
     let rule = MD046CodeBlockStyle::new(CodeBlockStyle::Fenced);
     let content = "# Mixed blocks\n\n```\nfenced block\n```\n\n    indented block";

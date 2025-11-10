@@ -4,7 +4,7 @@
 
 ## Introduction
 
-rumdl implements 54 rules for checking Markdown files. This document provides a comprehensive reference of all available rules, organized by category.
+rumdl implements 55 rules for checking Markdown files. This document provides a comprehensive reference of all available rules, organized by category.
 Each rule has a brief description and a link to its detailed documentation.
 
 For information on global configuration settings (file selection, rule enablement, etc.), see the [Global Settings Reference](global-settings.md).
@@ -87,6 +87,7 @@ These gaps in numbering are maintained for compatibility with markdownlint rule 
 | [MD044](md044.md) | Proper names            | Proper names should have consistent capitalization |
 | [MD049](md049.md) | Emphasis style          | Emphasis style should be consistent                |
 | [MD050](md050.md) | Strong style            | Strong style should be consistent                  |
+| [MD061](md061.md) | Footnote indentation    | Footnote continuation lines should stay indented   |
 
 ## Code Block Rules
 
