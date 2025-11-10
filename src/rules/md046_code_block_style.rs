@@ -1,5 +1,6 @@
 use crate::rule::{Fix, LintError, LintResult, LintWarning, Rule, RuleCategory, Severity};
 use crate::rules::code_block_utils::CodeBlockStyle;
+use crate::utils::mkdocs_footnotes;
 use crate::utils::mkdocs_tabs;
 use crate::utils::range_utils::{LineIndex, calculate_line_range};
 use toml;
@@ -104,6 +105,7 @@ impl MD046CodeBlockStyle {
         is_mkdocs: bool,
         in_list_context: &[bool],
         in_tab_context: &[bool],
+        in_footnote_context: &[bool],
     ) -> bool {
         if i >= lines.len() {
             return false;
@@ -121,6 +123,10 @@ impl MD046CodeBlockStyle {
             return false;
         }
 
+        if in_footnote_context.get(i).copied().unwrap_or(false) {
+            return false;
+        }
+
         // Skip if this is MkDocs tab content (pre-computed)
         if is_mkdocs && in_tab_context[i] {
             return false;
@@ -132,7 +138,8 @@ impl MD046CodeBlockStyle {
         let prev_is_indented_code = i > 0
             && (lines[i - 1].starts_with("    ") || lines[i - 1].starts_with("\t"))
             && !in_list_context[i - 1]
-            && !(is_mkdocs && in_tab_context[i - 1]);
+            && !(is_mkdocs && in_tab_context[i - 1])
+            && !in_footnote_context.get(i - 1).copied().unwrap_or(false);
 
         // If no blank line before and previous line is not indented code,
         // it's likely list continuation, not a code block
@@ -453,21 +460,28 @@ impl MD046CodeBlockStyle {
         let mut fenced_line = usize::MAX;
         let mut indented_line = usize::MAX;
 
-        // Pre-compute list and tab contexts for efficiency
+        // Pre-compute list, tab, and footnote contexts for efficiency
         let in_list_context = self.precompute_list_context(&lines);
         let in_tab_context = if is_mkdocs {
             self.precompute_mkdocs_tab_context(&lines)
         } else {
             vec![false; lines.len()]
         };
+        let in_footnote_context = mkdocs_footnotes::compute_footnote_context(&lines);
 
         // Scan through all lines to find code blocks
         for (i, line) in lines.iter().enumerate() {
             if self.is_fenced_code_block_start(line) {
                 fenced_found = true;
                 fenced_line = fenced_line.min(i);
-            } else if self.is_indented_code_block_with_context(&lines, i, is_mkdocs, &in_list_context, &in_tab_context)
-            {
+            } else if self.is_indented_code_block_with_context(
+                &lines,
+                i,
+                is_mkdocs,
+                &in_list_context,
+                &in_tab_context,
+                &in_footnote_context,
+            ) {
                 indented_found = true;
                 indented_line = indented_line.min(i);
             }
@@ -529,13 +543,14 @@ impl Rule for MD046CodeBlockStyle {
         // Check if we're in MkDocs mode
         let is_mkdocs = ctx.flavor == crate::config::MarkdownFlavor::MkDocs;
 
-        // Pre-compute list and tab contexts once for all checks
+        // Pre-compute list, tab, and footnote contexts once for all checks
         let in_list_context = self.precompute_list_context(&lines);
         let in_tab_context = if is_mkdocs {
             self.precompute_mkdocs_tab_context(&lines)
         } else {
             vec![false; lines.len()]
         };
+        let in_footnote_context = mkdocs_footnotes::compute_footnote_context(&lines);
 
         // Determine the target style from the detected style in the document
         let target_style = match self.config.style {
@@ -615,8 +630,14 @@ impl Rule for MD046CodeBlockStyle {
             }
 
             // Check for indented code blocks (when not inside a fenced block)
-            if self.is_indented_code_block_with_context(&lines, i, is_mkdocs, &in_list_context, &in_tab_context)
-                && target_style == CodeBlockStyle::Fenced
+            if self.is_indented_code_block_with_context(
+                &lines,
+                i,
+                is_mkdocs,
+                &in_list_context,
+                &in_tab_context,
+                &in_footnote_context,
+            ) && target_style == CodeBlockStyle::Fenced
             {
                 // Check if this is the start of a new indented block
                 let prev_line_is_indented = i > 0
@@ -626,6 +647,7 @@ impl Rule for MD046CodeBlockStyle {
                         is_mkdocs,
                         &in_list_context,
                         &in_tab_context,
+                        &in_footnote_context,
                     );
 
                 if !prev_line_is_indented {
@@ -701,6 +723,7 @@ impl Rule for MD046CodeBlockStyle {
         let mut in_fenced_block = false;
         let mut fenced_fence_type = None;
         let mut in_indented_block = false;
+        let in_footnote_context = mkdocs_footnotes::compute_footnote_context(&lines);
 
         for (i, line) in lines.iter().enumerate() {
             let trimmed = line.trim_start();
@@ -742,8 +765,14 @@ impl Rule for MD046CodeBlockStyle {
                     result.push_str(line);
                     result.push('\n');
                 }
-            } else if self.is_indented_code_block_with_context(&lines, i, is_mkdocs, &in_list_context, &in_tab_context)
-            {
+            } else if self.is_indented_code_block_with_context(
+                &lines,
+                i,
+                is_mkdocs,
+                &in_list_context,
+                &in_tab_context,
+                &in_footnote_context,
+            ) {
                 // This is an indented code block
 
                 // Check if we need to start a new fenced block
@@ -754,6 +783,7 @@ impl Rule for MD046CodeBlockStyle {
                         is_mkdocs,
                         &in_list_context,
                         &in_tab_context,
+                        &in_footnote_context,
                     );
 
                 if target_style == CodeBlockStyle::Fenced {
@@ -777,6 +807,7 @@ impl Rule for MD046CodeBlockStyle {
                             is_mkdocs,
                             &in_list_context,
                             &in_tab_context,
+                            &in_footnote_context,
                         );
                     if !_next_line_is_indented && in_indented_block {
                         result.push_str("```\n");

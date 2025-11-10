@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **MD061: Footnote indentation guard**
+  - New rule ensuring multi-paragraph footnotes keep the required four-space continuation indent
+  - Provides automatic fixes that normalize spacing without disturbing footnote content
+
+### Fixed
+
+- **MD046: Code block style inside footnotes**
+  - Skip legitimate footnote continuation lines when checking indented code blocks to avoid false positives
+
 ## [0.0.173] - 2025-01-08
 
 ### Added
